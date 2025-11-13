@@ -1,0 +1,639 @@
+import PySimpleGUI as sg
+import random
+import string
+import re
+from datetime import datetime
+import pandas as pd     # ADICIONADO PARA O EXCEL
+import os               # ADICIONADO PARA O EXCEL
+import openpyxl         # ADICIONADO PARA O EXCEL
+from openpyxl.styles import Font # ADICIONADO PARA O CABEÇALHO
+
+# --- Constantes ---
+EXCEL_FILE = os.path.join('Base_Clientes', 'Clientes.xlsx') # CORRIGIDO NOME DA PASTA
+SHEET_NAME = 'Base_Clientes' # Nome da aba na planilha
+
+# --- Perfis das Seguradoras e Regras ---
+PERFIS_AUTO = {
+    "Porto Seguro": {
+        "taxa_base": 0.040, "ajuste_idade_18_24": 0.50, "ajuste_cnh_menos_2anos": 0.20,
+        "ajuste_sexo_feminino": -0.10, "ajuste_casado": -0.05, "ajuste_cep_risco": 0.40,
+        "ajuste_uso_aplicativo": 0.60, "ajuste_teve_sinistro": 0.30, "ajuste_franquia_reduzida": 0.20,
+        "bonus_por_classe": -0.05, "taxa_franquia": 0.04, "opc_vidros": 150.00,
+        "opc_carro_7d": 200.00, "opc_carro_15d": 350.00
+    },
+    "Tokio Marine": {
+        "taxa_base": 0.035, "ajuste_idade_18_24": 0.55, "ajuste_cnh_menos_2anos": 0.25,
+        "ajuste_sexo_feminino": -0.08, "ajuste_casado": -0.04, "ajuste_cep_risco": 0.50,
+        "ajuste_uso_aplicativo": 0.70, "ajuste_teve_sinistro": 0.35, "ajuste_franquia_reduzida": 0.25,
+        "bonus_por_classe": -0.05, "taxa_franquia": 0.05, "opc_vidros": 160.00,
+        "opc_carro_7d": 220.00, "opc_carro_15d": 380.00
+    },
+    "Suhai Seguros": {
+        "taxa_base": 0.018, "ajuste_idade_18_24": 0.30, "ajuste_cnh_menos_2anos": 0.15,
+        "ajuste_sexo_feminino": -0.05, "ajuste_casado": 0.0, "ajuste_cep_risco": 0.25,
+        "ajuste_uso_aplicativo": 0.35, "ajuste_teve_sinistro": 0.20, "ajuste_franquia_reduzida": 0.15,
+        "bonus_por_classe": -0.03, "taxa_franquia": 0.03, "opc_vidros": 120.00,
+        "opc_carro_7d": 180.00, "opc_carro_15d": 300.00
+    }
+}
+PERFIS_DANOS_TERCEIROS = {"Nenhum": 0.0, "50k": 0.15, "100k": 0.25, "200k": 0.35}
+PERFIS_VIDA_TAXA_ETARIA = {
+    "Porto Seguro Vida": {"18-30": 0.0010, "31-45": 0.0020, "46-60": 0.0040, "61+": 0.0080},
+    "Tokio Marine Vida": {"18-30": 0.0012, "31-45": 0.0022, "46-60": 0.0045, "61+": 0.0090}
+}
+PERFIS_VIDA_FATORES_RISCO = {
+    "Porto Seguro Vida": {
+        "fumante": 0.30, "profissao_risco": 0.25, "doencas_preexistentes": 0.50,
+        "opc_invalidez": 0.20, "opc_doencas_graves": 0.30, "opc_funeral": 20.00,
+        "opc_dit_100": 30.00, "opc_dit_200": 50.00
+    },
+    "Tokio Marine Vida": {
+        "fumante": 0.35, "profissao_risco": 0.30, "doencas_preexistentes": 0.60,
+        "opc_invalidez": 0.25, "opc_doencas_graves": 0.35, "opc_funeral": 25.00,
+        "opc_dit_100": 35.00, "opc_dit_200": 60.00
+    }
+}
+PERFIS_CONSORCIO = {
+    "Porto Seguro Consórcios": {
+        "Auto": {"taxa_adm": 0.15, "fundo_reserva": 0.03},
+        "Imóvel": {"taxa_adm": 0.20, "fundo_reserva": 0.04},
+        "Moto": {"taxa_adm": 0.18, "fundo_reserva": 0.02}
+    },
+    "Tokio Marine Consórcios": {
+        "Auto": {"taxa_adm": 0.17, "fundo_reserva": 0.025},
+        "Imóvel": {"taxa_adm": 0.18, "fundo_reserva": 0.05},
+        "Moto": {"taxa_adm": 0.16, "fundo_reserva": 0.02}
+    }
+}
+PERFIS_FROTA_DESCONTO = {
+    "tier_1": {"min": 3, "max": 10, "desconto": 0.05},
+    "tier_2": {"min": 11, "max": 30, "desconto": 0.10},
+    "tier_3": {"min": 31, "max": 100, "desconto": 0.15},
+    "tier_4": {"min": 101, "max": 9999, "desconto": 0.20}
+}
+# Caracteres permitidos para validações
+letras_acentos_espaco = string.ascii_letters + ' áéíóúâêôãõçÁÉÍÓÚÂÊÔÃÕÇ'
+endereco_chars = string.ascii_letters + string.digits + ' .,-'
+email_chars = string.ascii_letters + string.digits + '._-@'
+letras_numeros_espaco_virgula_traco = string.ascii_letters + string.digits + ' ,-'
+
+# --- Função para Adicionar Dados ao Excel (CORRIGIDA) ---
+# --- Função para Adicionar Dados ao Excel (CORRIGIDA PARA COLUNA B, LINHA 2) ---
+def append_to_excel(file_path, sheet_name, data_dict):
+    """Adiciona um dicionário como nova linha a um arquivo Excel usando openpyxl."""
+    try:
+        # Garante que o diretório 'Base_Clientes' exista
+        os.makedirs(os.path.dirname(file_path), exist_ok=True)
+        
+        headers = ['Nome', 'Documento', 'Endereço', 'E-mail', 'Data Nasc.', 'Produto Simulado']
+        # Define o estilo da fonte do cabeçalho
+        header_font = Font(name='Calibri', size=11, bold=True)
+        
+        if not os.path.exists(file_path):
+            # 1. Cria um novo arquivo com cabeçalhos se não existir
+            wb = openpyxl.Workbook()
+            sheet = wb.active
+            sheet.title = sheet_name
+            # Escreve cabeçalhos na Linha 2, começando da Coluna B (índice 2)
+            for col_idx, header in enumerate(headers, start=2): # CORRIGIDO: Coluna B
+                cell = sheet.cell(row=2, column=col_idx) # CORRIGIDO: Linha 2
+                cell.value = header
+                cell.font = header_font # Aplica o estilo
+            next_row = 3 # Próxima linha para dados é a 3
+        else:
+            # 2. Carrega o arquivo existente
+            wb = openpyxl.load_workbook(file_path)
+            if sheet_name in wb.sheetnames:
+                sheet = wb[sheet_name]
+                next_row = sheet.max_row + 1
+                # Garante que estamos escrevendo abaixo dos cabeçalhos (Linha 2)
+                if next_row < 3: # CORRIGIDO
+                    next_row = 3
+            else:
+                # 3. Se a aba não existe, cria
+                sheet = wb.create_sheet(sheet_name)
+                # Escreve cabeçalhos na Linha 2
+                for col_idx, header in enumerate(headers, start=2): # CORRIGIDO: Coluna B
+                    cell = sheet.cell(row=2, column=col_idx) # CORRIGIDO: Linha 2
+                    cell.value = header
+                    cell.font = header_font
+                next_row = 3
+
+        # 4. Adiciona os novos dados na próxima linha vaga (começando da coluna B)
+        sheet.cell(row=next_row, column=2).value = data_dict['Nome'] # CORRIGIDO: Coluna B
+        sheet.cell(row=next_row, column=3).value = data_dict['Documento'] # CORRIGIDO: Coluna C
+        sheet.cell(row=next_row, column=4).value = data_dict['Endereço'] # CORRIGIDO: Coluna D
+        sheet.cell(row=next_row, column=5).value = data_dict['E-mail'] # CORRIGIDO: Coluna E
+        sheet.cell(row=next_row, column=6).value = data_dict['Data Nasc.'] # CORRIGIDO: Coluna F
+        sheet.cell(row=next_row, column=7).value = data_dict['Produto Simulado'] # CORRIGIDO: Coluna G
+        
+        # 5. Salva o arquivo
+        wb.save(file_path)
+
+    except PermissionError:
+         sg.popup_error(f"Erro: A planilha '{os.path.basename(file_path)}' está aberta.\nPor favor, feche o arquivo Excel e tente novamente.")
+    except Exception as e:
+         sg.popup_error(f"Erro inesperado ao tentar salvar na planilha:\n{e}")
+
+# --- Funções de Cálculo (Motores) ---
+def _calcular_cotacao_auto_individual(dados_cliente):
+    lista_de_cotacoes = []
+    for nome_seguradora, perfil in PERFIS_AUTO.items():
+        valor_fipe = dados_cliente["valor_fipe"]; premio_base = valor_fipe * perfil["taxa_base"]
+        soma_ajustes_positivos = 0.0; soma_ajustes_negativos = 0.0
+        tempo_cnh_str = dados_cliente["tempo_cnh"]; tempo_cnh_int = 0
+        if tempo_cnh_str == '10+': tempo_cnh_int = 11
+        else:
+            try: tempo_cnh_int = int(tempo_cnh_str)
+            except ValueError: tempo_cnh_int = 0
+        if 18 <= dados_cliente["idade"] <= 24: soma_ajustes_positivos += perfil["ajuste_idade_18_24"]
+        if tempo_cnh_int < 2: soma_ajustes_positivos += perfil["ajuste_cnh_menos_2anos"]
+        if dados_cliente["sexo"] == "Feminino": soma_ajustes_negativos += abs(perfil["ajuste_sexo_feminino"])
+        if dados_cliente["estado_civil"] == "Casado": soma_ajustes_negativos += abs(perfil["ajuste_casado"])
+        if dados_cliente["cep_risco"] == True: soma_ajustes_positivos += perfil["ajuste_cep_risco"]
+        if dados_cliente["uso"] == "Aplicativo": soma_ajustes_positivos += perfil["ajuste_uso_aplicativo"]
+        if dados_cliente["teve_sinistro"] == True: soma_ajustes_positivos += perfil["ajuste_teve_sinistro"]
+        ajuste_bonus = dados_cliente["classe_bonus"] * perfil["bonus_por_classe"]; soma_ajustes_negativos += abs(ajuste_bonus)
+        franquia_desejada = dados_cliente["tipo_franquia"]; taxa_franquia_final = perfil["taxa_franquia"]
+        if franquia_desejada == "Reduzida": soma_ajustes_positivos += perfil["ajuste_franquia_reduzida"]; taxa_franquia_final = taxa_franquia_final / 2
+        fator_ajuste_total = 1 + soma_ajustes_positivos - soma_ajustes_negativos
+        if fator_ajuste_total < 0.1: fator_ajuste_total = 0.1
+        preco_risco_seguro = premio_base * fator_ajuste_total; custo_opcionais_fixos = 0.0
+        if dados_cliente["quer_vidros"] == True: custo_opcionais_fixos += perfil["opc_vidros"]
+        tipo_carro_reserva = dados_cliente["carro_reserva"]
+        if tipo_carro_reserva == "7 dias": custo_opcionais_fixos += perfil["opc_carro_7d"]
+        elif tipo_carro_reserva == "15 dias": custo_opcionais_fixos += perfil["opc_carro_15d"]
+        cobertura_rcf = dados_cliente["danos_terceiros"]; fator_rcf = PERFIS_DANOS_TERCEIROS[cobertura_rcf]
+        custo_rcf = preco_risco_seguro * fator_rcf; preco_total_final = preco_risco_seguro + custo_opcionais_fixos + custo_rcf
+        valor_franquia = valor_fipe * taxa_franquia_final
+        cotacao_final = {"seguradora": nome_seguradora,"preco_anual": preco_total_final,"valor_franquia": valor_franquia,"tipo_franquia": franquia_desejada,"custo_base_risco": preco_risco_seguro,"custo_opcionais": custo_opcionais_fixos,"custo_rcf": custo_rcf}
+        lista_de_cotacoes.append(cotacao_final)
+    return lista_de_cotacoes
+
+def calcular_cotacao_vida(dados_cliente_vida):
+    print("\n--- Iniciando Simulação de Cotação Vida ---"); lista_de_cotacoes_vida = []
+    valor_segurado = dados_cliente_vida["valor_segurado"]; idade = dados_cliente_vida["idade"]
+    for nome_seguradora, perfil_risco in PERFIS_VIDA_FATORES_RISCO.items():
+        perfil_taxa = PERFIS_VIDA_TAXA_ETARIA[nome_seguradora]; taxa_base_etaria = 0.0
+        if 18 <= idade <= 30: taxa_base_etaria = perfil_taxa["18-30"]
+        elif 31 <= idade <= 45: taxa_base_etaria = perfil_taxa["31-45"]
+        elif 46 <= idade <= 60: taxa_base_etaria = perfil_taxa["46-60"]
+        elif idade >= 61: taxa_base_etaria = perfil_taxa["61+"]
+        preco_base_mensal = valor_segurado * taxa_base_etaria; soma_ajustes_risco_percentual = 0.0
+        if dados_cliente_vida["fumante"] == True: soma_ajustes_risco_percentual += perfil_risco["fumante"]
+        if dados_cliente_vida["profissao_risco"] == True: soma_ajustes_risco_percentual += perfil_risco["profissao_risco"]
+        if dados_cliente_vida["doencas_preexistentes"] == True: soma_ajustes_risco_percentual += perfil_risco["doencas_preexistentes"]
+        if dados_cliente_vida["quer_invalidez"] == True: soma_ajustes_risco_percentual += perfil_risco["opc_invalidez"]
+        if dados_cliente_vida["quer_doencas_graves"] == True: soma_ajustes_risco_percentual += perfil_risco["opc_doencas_graves"]
+        fator_risco_total = 1 + soma_ajustes_risco_percentual; preco_base_risco_mensal = preco_base_mensal * fator_risco_total
+        custo_opcionais_fixos_vida = 0.0
+        if dados_cliente_vida["quer_assistencia_funeral"] == True: custo_opcionais_fixos_vida += perfil_risco["opc_funeral"]
+        diaria_internacao = dados_cliente_vida["diaria_internacao"]
+        if diaria_internacao == "DIT R$ 100": custo_opcionais_fixos_vida += perfil_risco["opc_dit_100"]
+        elif diaria_internacao == "DIT R$ 200": custo_opcionais_fixos_vida += perfil_risco["opc_dit_200"]
+        preco_final_total_mensal = preco_base_risco_mensal + custo_opcionais_fixos_vida
+        cotacao_final_vida = {"seguradora": nome_seguradora, "preco_mensal": preco_final_total_mensal, "valor_segurado": valor_segurado,"custo_base_risco": preco_base_risco_mensal, "custo_opcionais": custo_opcionais_fixos_vida}
+        lista_de_cotacoes_vida.append(cotacao_final_vida)
+    return lista_de_cotacoes_vida
+
+def calcular_cotacao_consorcio(dados_cliente_consorcio):
+    print("\n--- Iniciando Simulação de Cotação Consórcio ---"); lista_de_cotacoes_consorcio = []
+    carta_credito = dados_cliente_consorcio["carta_credito"]; tipo_bem = dados_cliente_consorcio["tipo_bem"]
+    prazo_meses = dados_cliente_consorcio["prazo_meses"]; lance_embutido_pct = dados_cliente_consorcio["percentual_lance_embutido"]
+    for nome_adm, perfis in PERFIS_CONSORCIO.items():
+        perfil_bem = perfis[tipo_bem]; taxa_adm = perfil_bem["taxa_adm"]; fundo_reserva = perfil_bem["fundo_reserva"]
+        custo_taxa_adm = carta_credito * taxa_adm; custo_fundo_reserva = carta_credito * fundo_reserva
+        valor_total_pagar = carta_credito + custo_taxa_adm + custo_fundo_reserva
+        valor_parcela_mensal = valor_total_pagar / prazo_meses
+        valor_lance_embutido = carta_credito * lance_embutido_pct; valor_liquido_a_receber = carta_credito - valor_lance_embutido
+        cotacao_final_consorcio = {
+            "administradora": nome_adm, "tipo_bem": tipo_bem, "carta_credito": carta_credito, "prazo_meses": prazo_meses, "taxa_adm_percentual": taxa_adm,
+            "fundo_reserva_percentual": fundo_reserva, "valor_total_a_pagar": valor_total_pagar, "valor_parcela": valor_parcela_mensal,
+            "valor_lance_embutido": valor_lance_embutido, "valor_liquido_a_receber": valor_liquido_a_receber
+        }
+        lista_de_cotacoes_consorcio.append(cotacao_final_consorcio)
+    return lista_de_cotacoes_consorcio
+    
+def calcular_cotacao_frota(lista_veiculos):
+    print("\n--- Iniciando Simulação de Cotação Frota ---"); totais_por_seguradora = {}; lista_de_cotacoes_frota = []
+    for veiculo in lista_veiculos:
+        resultados_veiculo_individual = _calcular_cotacao_auto_individual(veiculo)
+        for cotacao_individual in resultados_veiculo_individual:
+            seguradora = cotacao_individual["seguradora"]; preco = cotacao_individual["preco_anual"]
+            if seguradora not in totais_por_seguradora: totais_por_seguradora[seguradora] = 0
+            totais_por_seguradora[seguradora] += preco
+    num_veiculos = len(lista_veiculos); desconto_aplicado = 0.0
+    for tier in PERFIS_FROTA_DESCONTO.values():
+        if tier["min"] <= num_veiculos <= tier["max"]: desconto_aplicado = tier["desconto"]; break
+    for seguradora, premio_bruto in totais_por_seguradora.items():
+        custo_desconto = premio_bruto * desconto_aplicado; premio_liquido = premio_bruto - custo_desconto
+        cotacao_final_frota = {
+            "seguradora": seguradora, "premio_total_bruto": premio_bruto, "num_veiculos": num_veiculos,
+            "desconto_percentual": desconto_aplicado, "valor_desconto": custo_desconto, "premio_final_com_desconto": premio_liquido
+        }
+        lista_de_cotacoes_frota.append(cotacao_final_frota)
+    return lista_de_cotacoes_frota
+
+# --- Funções das Janelas (Interface) ---
+def abrir_janela_resultados_auto(resultados_cotacao):
+    sg.theme('LightBlue2'); dados_tabela = []
+    for cotacao in resultados_cotacao:
+        linha = [cotacao['seguradora'],f"R$ {cotacao['preco_anual']:.2f}", f"R$ {cotacao['valor_franquia']:.2f}", cotacao['tipo_franquia']]
+        dados_tabela.append(linha)
+    layout = [
+        [sg.Text('Comparativo de Cotação - Seguro Auto', font=('Helvetica', 16))],
+        [sg.Table(values=dados_tabela, headings=['Seguradora', 'Preço Anual', 'Valor Franquia', 'Tipo Franquia'],
+            auto_size_columns=True, justification='right', num_rows=len(dados_tabela), key='-TABELA-', display_row_numbers=False)],
+        [sg.Button('Fechar')]
+    ]
+    window = sg.Window('Resultados da Cotação', layout, modal=True)
+    while True:
+        event, values = window.read()
+        if event == sg.WIN_CLOSED or event == 'Fechar': break
+    window.close()
+
+def abrir_janela_resultados_vida(resultados_cotacao):
+    sg.theme('LightBlue2'); dados_tabela = []
+    for cotacao in resultados_cotacao:
+        linha = [ cotacao['seguradora'], f"R$ {cotacao['preco_mensal']:.2f}", f"R$ {cotacao['valor_segurado']:.2f}", f"R$ {cotacao['custo_base_risco']:.2f}", f"R$ {cotacao['custo_opcionais']:.2f}"]
+        dados_tabela.append(linha)
+    layout = [
+        [sg.Text('Comparativo de Cotação - Seguro de Vida', font=('Helvetica', 16))],
+        [sg.Table(values=dados_tabela, headings=['Seguradora', 'Preço Mensal', 'Valor Cobertura', 'Custo Risco', 'Custo Opcionais'],
+            auto_size_columns=True, justification='right', num_rows=len(dados_tabela), key='-TABELA-', display_row_numbers=False)],
+        [sg.Button('Fechar')]
+    ]
+    window = sg.Window('Resultados da Cotação', layout, modal=True)
+    while True:
+        event, values = window.read()
+        if event == sg.WIN_CLOSED or event == 'Fechar': break
+    window.close()
+
+def abrir_janela_resultados_consorcio(resultados_cotacao):
+    sg.theme('LightBlue2'); dados_tabela = []
+    for cotacao in resultados_cotacao:
+        linha = [
+            cotacao['administradora'], f"R$ {cotacao['valor_parcela']:.2f} ({cotacao['prazo_meses']}x)",
+            f"R$ {cotacao['valor_lance_embutido']:.2f}", 
+            f"R$ {cotacao['valor_liquido_a_receber']:.2f}", f"R$ {cotacao['valor_total_a_pagar']:.2f}",
+            f"{cotacao['taxa_adm_percentual'] * 100:.1f}%"
+        ]
+        dados_tabela.append(linha)
+    layout = [
+        [sg.Text('Comparativo de Cotação - Consórcio', font=('Helvetica', 16))],
+        [sg.Table(values=dados_tabela, headings=['Administradora', 'Valor da Parcela', 'Lance Embutido', 'Líquido a Receber', 'Valor Total Pago', 'Taxa Adm.'],
+            auto_size_columns=True, justification='right', num_rows=len(dados_tabela), key='-TABELA-', display_row_numbers=False)],
+        [sg.Button('Fechar')]
+    ]
+    window = sg.Window('Resultados da Cotação', layout, modal=True)
+    while True:
+        event, values = window.read()
+        if event == sg.WIN_CLOSED or event == 'Fechar': break
+    window.close()
+
+def abrir_janela_resultados_frota(resultados_cotacao):
+    sg.theme('LightBlue2'); dados_tabela = []
+    num_veiculos = 0; desconto_pct = 0
+    if resultados_cotacao: num_veiculos = resultados_cotacao[0]['num_veiculos']; desconto_pct = resultados_cotacao[0]['desconto_percentual'] * 100
+    for cotacao in resultados_cotacao:
+        linha = [ cotacao['seguradora'], f"R$ {cotacao['premio_total_bruto']:.2f}", f"-R$ {cotacao['valor_desconto']:.2f}", f"R$ {cotacao['premio_final_com_desconto']:.2f}"]
+        dados_tabela.append(linha)
+    layout = [
+        [sg.Text(f'Comparativo de Cotação - Frota com {num_veiculos} Veículos', font=('Helvetica', 16))],
+        [sg.Text(f'Desconto aplicado: {desconto_pct:.0f}%')],
+        [sg.Table(values=dados_tabela, headings=['Seguradora', 'Prêmio Total Bruto', 'Desconto Frota', 'Prêmio Final'],
+            auto_size_columns=True, justification='right', num_rows=len(dados_tabela), key='-TABELA-', display_row_numbers=False)],
+        [sg.Button('Fechar')]
+    ]
+    window = sg.Window('Resultados da Cotação Frota', layout, modal=True)
+    while True:
+        event, values = window.read()
+        if event == sg.WIN_CLOSED or event == 'Fechar': break
+    window.close()
+
+# --- Funções das Janelas de Formulário (com enable/disable e layout verticalizado) ---
+def abrir_janela_auto(modo_frota=False):
+    sg.theme('LightBlue2')
+    titulo = 'Cotação Seguro Auto'; texto_botao = 'Gerar Cotação'
+    if modo_frota: titulo = 'Adicionar Veículo à Frota'; texto_botao = 'Adicionar Veículo'
+    cnh_options = [str(i) for i in range(11)] + ['10+']
+    col_dados_veiculo = [
+        [sg.Text('Placa ou Chassi:', size=(20,1)), sg.Input(key='-PLACA_CHASSI-', size=(17,1), enable_events=True)],
+        [sg.Text('Valor FIPE (Estimado):', size=(20,1)), sg.Input(key='-FIPE-', size=(15,1), disabled=True, text_color='black')],
+        [sg.Text('Idade do Veículo:', size=(20,1)), sg.Input(key='-IDADE-', size=(3,1), enable_events=True)],
+        [sg.Text('Tempo de CNH (anos):', size=(20,1)), sg.Combo(cnh_options, default_value='0', key='-CNH-', size=(5,1), readonly=True)],
+        [sg.Text('Classe de Bônus (0-10):', size=(20,1)), sg.Spin([i for i in range(11)], initial_value=0, key='-BONUS-', size=(5,1), readonly=True)]
+    ]
+    col_perfil_condutor = [
+        [sg.Text('Sexo:', size=(15,1)), sg.Combo(['Masculino', 'Feminino'], default_value='Masculino', key='-SEXO-', size=(15,1), readonly=True)],
+        [sg.Text('Estado Civil:', size=(15,1)), sg.Combo(['Solteiro', 'Casado', 'Não informado', 'Viúva(o)'], default_value='Solteiro', key='-ESTADO_CIVIL-', size=(15,1), readonly=True)],
+        [sg.Text('Uso do Veículo:', size=(15,1)), sg.Combo(['Particular', 'Aplicativo'], default_value='Particular', key='-USO-', size=(15,1), readonly=True)],
+        [sg.Text('Tipo de Franquia:', size=(15,1)), sg.Combo(['Normal', 'Reduzida'], default_value='Normal', key='-FRANQUIA-', size=(15,1), readonly=True)]
+    ]
+    # --- Coluna Riscos com Layout Verticalizado (Auto) ---
+    col_riscos_opcionais = [
+        [sg.Checkbox('Mora em CEP de Risco?', key='-CHECK_CEP-', enable_events=True)],
+        [sg.Text('Digite seu CEP:', size=(15,1)), sg.Input(key='-INPUT_CEP-', size=(10,1), enable_events=True, disabled=True)],
+        [sg.Checkbox('Teve sinistro recente?', key='-CHECK_SINISTRO-', enable_events=True)],
+        [sg.Text('Descreva o ocorrido:', size=(18,1)), sg.Multiline(key='-INPUT_SINISTRO-', size=(40,2), enable_events=True, disabled=True)],
+        [sg.Checkbox('Cobertura de Vidros?', key='-VIDROS-')],
+        [sg.Text('Carro Reserva:'), sg.Combo(['Nenhum', '7 dias', '15 dias'], default_value='Nenhum', key='-CARRO_RESERVA-', readonly=True)],
+        [sg.Text('Danos a Terceiros:'), sg.Combo(['Nenhum', '50k', '100k', '200k'], default_value='Nenhum', key='-DANOS-', readonly=True)]
+    ]
+    layout = [
+        [sg.Text(titulo, font=('Helvetica', 16))], [sg.HorizontalSeparator()],
+        [sg.Column(col_dados_veiculo), sg.VerticalSeparator(), sg.Column(col_perfil_condutor)],
+        [sg.HorizontalSeparator()], [sg.Column(col_riscos_opcionais)],
+        [sg.HorizontalSeparator()], [sg.Button(texto_botao), sg.Button('Voltar')]
+    ]
+    window = sg.Window(titulo, layout, modal=True, finalize=True)
+    dados_cliente_veiculo = None
+    while True:
+        event, values = window.read()
+        if event == sg.WIN_CLOSED or event == 'Voltar': break
+
+        # Lógica Enable/Disable Auto
+        if event == '-CHECK_CEP-':
+            is_checked = values['-CHECK_CEP-']
+            window['-INPUT_CEP-'].update(disabled=not is_checked, value='' if not is_checked else values['-INPUT_CEP-'])
+        elif event == '-CHECK_SINISTRO-':
+            is_checked = values['-CHECK_SINISTRO-']
+            window['-INPUT_SINISTRO-'].update(disabled=not is_checked, value='' if not is_checked else values['-INPUT_SINISTRO-'])
+
+        # Validação Tempo Real Auto
+        try:
+            current_input_val = values[event]
+            if event == '-PLACA_CHASSI-':
+                if current_input_val and (not current_input_val[-1].isalnum() or len(current_input_val) > 17): window['-PLACA_CHASSI-'].update(current_input_val[:-1])
+            elif event == '-IDADE-':
+                if current_input_val and (not current_input_val[-1].isdigit() or len(current_input_val) > 2): window['-IDADE-'].update(current_input_val[:-1])
+            elif event == '-INPUT_CEP-':
+                 if current_input_val and (not current_input_val[-1].isdigit() or len(current_input_val) > 10): window['-INPUT_CEP-'].update(current_input_val[:-1])
+            elif event == '-INPUT_SINISTRO-':
+                 text = current_input_val
+                 if text and len(text) > 150: window['-INPUT_SINISTRO-'].update(text[:-1])
+                 elif text and text[-1] not in letras_acentos_espaco: window['-INPUT_SINISTRO-'].update(text[:-1]) # Correção validação sinistro
+        except (IndexError, TypeError, KeyError): pass
+        
+        if event == texto_botao:
+            try:
+                # [ Validações + Coleta + Chamada Motor ]
+                if not values['-IDADE-'] or not values['-PLACA_CHASSI-']: sg.popup_error('Preencha Placa/Chassi e Idade.'); continue
+                if values['-CHECK_CEP-'] and not values['-INPUT_CEP-']: sg.popup_error('Digite o CEP.'); continue
+                if values['-CHECK_SINISTRO-'] and not values['-INPUT_SINISTRO-']: sg.popup_error('Descreva o sinistro.'); continue
+                fipe_estimada = round(random.uniform(30000, 150000), 2); window['-FIPE-'].update(f"{fipe_estimada:.2f}")
+                dados_cliente = {
+                    "valor_fipe": fipe_estimada, "idade": int(values['-IDADE-']), "tempo_cnh": values['-CNH-'],
+                    "sexo": values['-SEXO-'], "estado_civil": values['-ESTADO_CIVIL-'], "cep_risco": values['-CHECK_CEP-'],
+                    "uso": values['-USO-'], "teve_sinistro": values['-CHECK_SINISTRO-'], "classe_bonus": int(values['-BONUS-']),
+                    "tipo_franquia": values['-FRANQUIA-'], "quer_vidros": values['-VIDROS-'],
+                    "carro_reserva": values['-CARRO_RESERVA-'], "danos_terceiros": values['-DANOS-'],
+                    "placa_chassi": values['-PLACA_CHASSI-'],
+                    "cep_digitado": values['-INPUT_CEP-'] if values['-CHECK_CEP-'] else None,
+                    "descricao_sinistro": values['-INPUT_SINISTRO-'] if values['-CHECK_SINISTRO-'] else None
+                }
+                if modo_frota: dados_cliente_veiculo = dados_cliente; break
+                else:
+                    print("--- Iniciando Simulação de Cotação Auto ---")
+                    resultados = _calcular_cotacao_auto_individual(dados_cliente)
+                    abrir_janela_resultados_auto(resultados)
+            except Exception as e: sg.popup_error(f'Erro ao processar dados. Verifique os campos.\n{e}')
+    window.close(); return dados_cliente_veiculo
+
+def abrir_janela_vida():
+    sg.theme('LightBlue2')
+    # --- Layout da Janela Vida com Layout Verticalizado ---
+    col_dados_basicos = [
+        [sg.Text('Valor Segurado:', size=(25,1)), sg.Input(key='-VALOR_SEGURADO-', size=(15,1), enable_events=True)],
+        [sg.Text('Idade:', size=(25,1)), sg.Input(key='-IDADE-', size=(4,1), enable_events=True)],
+        [sg.Text('Renda Mensal:', size=(25,1)), sg.Input(key='-RENDA-', size=(15,1), enable_events=True)],
+        [sg.Text('Profissão:', size=(25,1)), sg.Input(key='-PROFISSAO-', size=(15,1), enable_events=True)]
+    ]
+    col_fatores_risco = [
+        [sg.Checkbox('Fumante?', key='-FUMANTE-')],
+        [sg.Checkbox('Profissão de Risco?', key='-CHECK_PROFRISCO-', enable_events=True)],
+        [sg.Text('Qual profissão?:', size=(15,1)), sg.Input(key='-INPUT_PROFRISCO-', size=(25,1), enable_events=True, disabled=True)],
+        [sg.Checkbox('Doenças Pré-existentes?', key='-CHECK_DOENCAS-', enable_events=True)],
+        [sg.Text('Quais doenças?:', size=(15,1)), sg.Multiline(key='-INPUT_DOENCAS-', size=(25,2), enable_events=True, disabled=True)]
+    ]
+    col_opcionais = [
+        [sg.Checkbox('Cobertura por Invalidez?', key='-INVALIDEZ-')],
+        [sg.Checkbox('Cobertura Doenças Graves?', key='-DOENCAS_GRAVES-')],
+        [sg.Checkbox('Assistência Funeral?', key='-FUNERAL-')],
+        [sg.Text('Diária Internação:'), sg.Combo(['Nenhuma', 'DIT R$ 100', 'DIT R$ 200'], default_value='Nenhuma', key='-DIT-', readonly=True)]
+    ]
+    layout = [
+        [sg.Text('Formulário de Cotação - Seguro de Vida', font=('Helvetica', 16))], [sg.HorizontalSeparator()],
+        [sg.Column(col_dados_basicos)], [sg.HorizontalSeparator()],
+        [sg.Column(col_fatores_risco), sg.VerticalSeparator(), sg.Column(col_opcionais)],
+        [sg.HorizontalSeparator()], [sg.Button('Gerar Cotação'), sg.Button('Voltar')]
+    ]
+    window = sg.Window('Cotação Seguro de Vida', layout, modal=True, finalize=True)
+    
+    while True:
+        event, values = window.read()
+        if event == sg.WIN_CLOSED or event == 'Voltar': break
+        
+        # Lógica Enable/Disable Vida
+        if event == '-CHECK_PROFRISCO-':
+            is_checked = values['-CHECK_PROFRISCO-']
+            window['-INPUT_PROFRISCO-'].update(disabled=not is_checked, value='' if not is_checked else values['-INPUT_PROFRISCO-'])
+        elif event == '-CHECK_DOENCAS-':
+             is_checked = values['-CHECK_DOENCAS-']
+             window['-INPUT_DOENCAS-'].update(disabled=not is_checked, value='' if not is_checked else values['-INPUT_DOENCAS-'])
+
+        # Validação Tempo Real Vida
+        try:
+            current_input_val = values[event]
+            if event == '-VALOR_SEGURADO-':
+                if current_input_val and (not current_input_val[-1].isdigit() or len(current_input_val) > 15): window['-VALOR_SEGURADO-'].update(current_input_val[:-1])
+            elif event == '-IDADE-':
+                 if current_input_val and (not current_input_val[-1].isdigit() or len(current_input_val) > 3): window['-IDADE-'].update(current_input_val[:-1])
+            elif event == '-RENDA-':
+                 if current_input_val and (not current_input_val[-1].isdigit() or len(current_input_val) > 15): window['-RENDA-'].update(current_input_val[:-1])
+            elif event == '-PROFISSAO-': 
+                 if current_input_val and (current_input_val[-1] not in letras_acentos_espaco or len(current_input_val) > 80): window[event].update(current_input_val[:-1]) 
+            elif event == '-INPUT_PROFRISCO-': 
+                 if current_input_val and (current_input_val[-1] not in letras_acentos_espaco or len(current_input_val) > 80): window[event].update(current_input_val[:-1])
+            elif event == '-INPUT_DOENCAS-': 
+                 if current_input_val and (current_input_val[-1] not in letras_numeros_espaco_virgula_traco or len(current_input_val) > 80): window['-INPUT_DOENCAS-'].update(current_input_val[:-1])
+        except (IndexError, TypeError, KeyError): pass
+
+        if event == 'Gerar Cotação':
+            try:
+                # [ Validações ]
+                if not values['-VALOR_SEGURADO-'] or not values['-IDADE-'] or not values['-RENDA-'] or not values['-PROFISSAO-']: 
+                    sg.popup_error('Preencha Valor, Idade, Renda e Profissão.'); continue
+                if values['-CHECK_PROFRISCO-'] and not values['-INPUT_PROFRISCO-']: sg.popup_error('Digite a profissão de risco.'); continue
+                if values['-CHECK_DOENCAS-'] and not values['-INPUT_DOENCAS-']: sg.popup_error('Descreva as doenças.'); continue
+                renda_mensal = float(values['-RENDA-']); valor_segurado_desejado = float(values['-VALOR_SEGURADO-'])
+                limite_valor_segurado = renda_mensal * 100 
+                if valor_segurado_desejado > limite_valor_segurado:
+                    sg.popup_error(f'Valor Segurado excede o limite (100x Renda).\nLimite: R$ {limite_valor_segurado:.2f}'); continue 
+                dados_cliente = {
+                    "valor_segurado": valor_segurado_desejado, "idade": int(values['-IDADE-']),
+                    "fumante": values['-FUMANTE-'], "profissao_risco": values['-CHECK_PROFRISCO-'],
+                    "doencas_preexistentes": values['-CHECK_DOENCAS-'], "quer_invalidez": values['-INVALIDEZ-'],
+                    "quer_doencas_graves": values['-DOENCAS_GRAVES-'], "quer_assistencia_funeral": values['-FUNERAL-'],
+                    "diaria_internacao": values['-DIT-'], "renda_mensal": renda_mensal, "profissao": values['-PROFISSAO-'],
+                    "detalhe_profissao_risco": values['-INPUT_PROFRISCO-'] if values['-CHECK_PROFRISCO-'] else None,
+                    "detalhe_doencas": values['-INPUT_DOENCAS-'] if values['-CHECK_DOENCAS-'] else None
+                }
+                resultados = calcular_cotacao_vida(dados_cliente)
+                abrir_janela_resultados_vida(resultados)
+            except Exception as e: sg.popup_error(f'Erro ao processar dados. Verifique os campos.\n{e}')
+    window.close()
+
+def abrir_janela_consorcio():
+    sg.theme('LightBlue2')
+    layout = [
+        [sg.Text('Formulário de Cotação - Consórcio', font=('Helvetica', 16))], [sg.HorizontalSeparator()],
+        [sg.Text('Tipo de Bem:', size=(25,1)), sg.Combo(['Auto', 'Imóvel', 'Moto'], default_value='Auto', key='-TIPO_BEM-', readonly=True)],
+        [sg.Text('Valor da Carta de Crédito:', size=(25,1)), sg.Input(key='-CARTA-', size=(15,1), enable_events=True)],
+        [sg.Text('Prazo (em meses):', size=(25,1)), sg.Input(key='-PRAZO-', size=(4,1), enable_events=True)],
+        [sg.Text('Percentual Lance Embutido:', size=(25,1)), sg.Combo(['0%', '10%', '20%', '25%'], default_value='0%', key='-LANCE-', readonly=True)],
+        [sg.HorizontalSeparator()], [sg.Button('Gerar Cotação'), sg.Button('Voltar')]
+    ]
+    window = sg.Window('Cotação Consórcio', layout, modal=True)
+    mapa_lance = {'0%': 0.0, '10%': 0.10, '20%': 0.20, '25%': 0.25}
+    while True:
+        event, values = window.read()
+        if event == sg.WIN_CLOSED or event == 'Voltar': break
+        try:
+            current_input_val = values[event]
+            if event == '-CARTA-':
+                 if current_input_val and (not current_input_val[-1].isdigit() or len(current_input_val) > 15): window['-CARTA-'].update(current_input_val[:-1])
+            elif event == '-PRAZO-':
+                 if current_input_val and (not current_input_val[-1].isdigit() or len(current_input_val) > 3): window['-PRAZO-'].update(current_input_val[:-1])
+        except (IndexError, TypeError, KeyError): pass
+        if event == 'Gerar Cotação':
+            try:
+                if not values['-CARTA-'] or not values['-PRAZO-']: sg.popup_error('Preencha Valor da Carta e Prazo.'); continue
+                dados_cliente = { "carta_credito": float(values['-CARTA-']), "tipo_bem": values['-TIPO_BEM-'], "prazo_meses": int(values['-PRAZO-']), "percentual_lance_embutido": mapa_lance[values['-LANCE-']] }
+                resultados = calcular_cotacao_consorcio(dados_cliente)
+                abrir_janela_resultados_consorcio(resultados)
+            except Exception as e: sg.popup_error(f'Erro ao processar dados. Verifique os campos.\n{e}')
+    window.close()
+
+def abrir_janela_frota():
+    sg.theme('LightBlue2')
+    lista_veiculos_frota = []; dados_tabela_frota = []
+    layout = [
+        [sg.Text('Gerenciador de Cotação - Seguro Frota', font=('Helvetica', 16))],
+        [sg.Text('Finalidade da Frota:', size=(20,1)), sg.Input(key='-FINALIDADE_FROTA-', size=(30,1))],
+        [sg.Text('Tipo de Carga:', size=(20,1)), sg.Input(key='-TIPO_CARGA-', size=(30,1))],
+        [sg.Text('Ramo da Empresa:', size=(20,1)), sg.Input(key='-RAMO_EMPRESA-', size=(30,1))],
+        [sg.HorizontalSeparator()], [sg.Text('Veículos adicionados à cotação:')],
+        [sg.Table(values=dados_tabela_frota, headings=['FIPE', 'Idade', 'CNH', 'Uso', 'Bônus', 'Franquia', 'Danos'],
+            auto_size_columns=False, col_widths=[10, 5, 5, 10, 5, 10, 10], justification='right', num_rows=5,
+            key='-TABELA_FROTA-', display_row_numbers=True)],
+        [sg.Button('Adicionar Veículo'), sg.Button('Gerar Cotação da Frota'), sg.Button('Voltar')]
+    ]
+    window = sg.Window('Cotação Seguro Frota', layout, modal=True, finalize=True)
+    while True:
+        event, values = window.read()
+        if event == sg.WIN_CLOSED or event == 'Voltar': break
+        if event == 'Adicionar Veículo':
+            novo_veiculo = abrir_janela_auto(modo_frota=True)
+            if novo_veiculo:
+                lista_veiculos_frota.append(novo_veiculo)
+                linha_tabela = [ f"R$ {novo_veiculo['valor_fipe']:.2f}", novo_veiculo['idade'], novo_veiculo['tempo_cnh'], novo_veiculo['uso'], novo_veiculo['classe_bonus'], novo_veiculo['tipo_franquia'], novo_veiculo['danos_terceiros'] ]
+                dados_tabela_frota.append(linha_tabela)
+                window['-TABELA_FROTA-'].update(values=dados_tabela_frota)
+        if event == 'Gerar Cotação da Frota':
+            if not lista_veiculos_frota: sg.popup_error('Adicione pelo menos um veículo...'); continue
+            finalidade = values['-FINALIDADE_FROTA-']; carga = values['-TIPO_CARGA-']; ramo = values['-RAMO_EMPRESA-']
+            print("-" * 20); print("Dados Adicionais da Frota Coletados:"); print(f"  Finalidade: {finalidade}"); print(f"  Tipo de Carga: {carga}"); print(f"  Ramo da Empresa: {ramo}"); print("-" * 20)
+            resultados = calcular_cotacao_frota(lista_veiculos_frota)
+            abrir_janela_resultados_frota(resultados)
+    window.close()
+
+def main_interface():
+    sg.theme('LightBlue2')
+    dados_basicos_layout = [
+        [sg.Text('Nome Completo:', size=(15,1)), sg.Input(key='-NOME-', size=(30,1), enable_events=True)],
+        [sg.Text('Tipo Documento:', size=(15,1)),
+         sg.Radio('CPF', "RADIO_DOC", default=True, key='-TIPO_DOC_CPF-', enable_events=True),
+         sg.Radio('CNPJ', "RADIO_DOC", key='-TIPO_DOC_CNPJ-', enable_events=True)],
+        [sg.Text('CPF/CNPJ:', size=(15,1)), sg.Input(key='-CPF_CNPJ-', size=(20,1), enable_events=True)],
+        [sg.Text('Endereço:', size=(15,1)), sg.Input(key='-ENDERECO-', size=(30,1), enable_events=True)],
+        [sg.Text('E-mail:', size=(15,1)), sg.Input(key='-EMAIL-', size=(30,1), enable_events=True)],
+        [sg.Text('Data Nascimento:', size=(15,1)), sg.Input(key='-DT_NASC-', size=(15,1), readonly=True), sg.CalendarButton('Calendário', target='-DT_NASC-', format='%d/%m/%Y')]
+    ]
+    layout = [
+        [sg.Text('Fast Seguros - Rapidez que Protege', font=('Helvetica', 16))], [sg.HorizontalSeparator()],
+        [sg.Text('Dados Básicos do Cliente:', font=('Helvetica', 12))],
+        [sg.Column(dados_basicos_layout, element_justification='left')], [sg.HorizontalSeparator()],
+        [sg.Text('Selecione o produto que deseja cotar:')],
+        [sg.Button('Seguro Auto', key='-BTN_AUTO-', size=(15, 2)), sg.Button('Seguro Frota', key='-BTN_FROTA-', size=(15, 2))],
+        [sg.Button('Seguro de Vida', key='-BTN_VIDA-', size=(15, 2)), sg.Button('Consórcio', key='-BTN_CONSORCIO-', size=(15, 2))],
+        [sg.HorizontalSeparator()], [sg.Button('Sair', key='-SAIR-', size=(10, 1))]
+    ]
+    window = sg.Window('Menu Principal - Fast Seguros', layout, element_justification='c', finalize=True)
+    dados_basicos_cliente = {}
+    doc_type = 'cpf'
+    while True:
+        event, values = window.read()
+        if event == sg.WIN_CLOSED or event == '-SAIR-': break
+        if event == '-TIPO_DOC_CPF-' and values['-TIPO_DOC_CPF-']: doc_type = 'cpf'; window['-CPF_CNPJ-'].update('')
+        elif event == '-TIPO_DOC_CNPJ-' and values['-TIPO_DOC_CNPJ-']: doc_type = 'cnpj'; window['-CPF_CNPJ-'].update('')
+        try:
+            current_input_val = values[event]
+            if event == '-NOME-':
+                 if current_input_val and (current_input_val[-1] not in letras_acentos_espaco or len(current_input_val) > 80): window['-NOME-'].update(current_input_val[:-1])
+            elif event == '-CPF_CNPJ-':
+                text = current_input_val
+                if text and not text[-1].isdigit(): window['-CPF_CNPJ-'].update(text[:-1])
+                else:
+                    digits_only = ''.join(filter(str.isdigit, text))
+                    max_len = 11 if doc_type == 'cpf' else 14
+                    if len(digits_only) > max_len: window['-CPF_CNPJ-'].update(text[:-1])
+            elif event == '-ENDERECO-' and current_input_val and current_input_val[-1] not in endereco_chars: window['-ENDERECO-'].update(current_input_val[:-1])
+            elif event == '-EMAIL-' and current_input_val and current_input_val[-1] not in email_chars: window['-EMAIL-'].update(current_input_val[:-1])
+        except (IndexError, TypeError, KeyError): pass
+        campos_basicos = ['-NOME-', '-CPF_CNPJ-', '-ENDERECO-', '-EMAIL-', '-DT_NASC-']
+        button_events = ['-BTN_AUTO-', '-BTN_FROTA-', '-BTN_VIDA-', '-BTN_CONSORCIO-']
+        if event in button_events:
+            email = values['-EMAIL-']
+            try:
+                at_pos = email.index('@'); dot_pos = email.index('.', at_pos + 1); last_dot_pos = email.rindex('.')
+                email_valido = (email.count('@') == 1 and dot_pos > at_pos + 1 and len(email.split('.')[-1]) >= 2)
+            except ValueError: email_valido = False
+            doc_digits = ''.join(filter(str.isdigit, values['-CPF_CNPJ-']))
+            doc_len_ok = (doc_type == 'cpf' and len(doc_digits) == 11) or (doc_type == 'cnpj' and len(doc_digits) == 14)
+            try:
+                birth_date = datetime.strptime(values['-DT_NASC-'], '%d/%m/%Y').date(); today = datetime.now().date()
+                age = today.year - birth_date.year - ((today.month, today.day) < (birth_date.month, birth_date.day)); idade_ok = age >= 18
+            except ValueError: idade_ok = False
+            
+            if any(not values[campo] for campo in campos_basicos): sg.popup_error('Preencha os Dados Básicos...'); continue
+            elif not doc_len_ok: sg.popup_error(f'Verifique o número de dígitos do {doc_type.upper()}.'); continue
+            elif not email_valido: sg.popup_error("E-mail inválido. Verifique o formato."); continue
+            elif not idade_ok: sg.popup_error("Idade mínima é 18 anos."); continue
+            else:
+                produto_map = {'-BTN_AUTO-': 'Seguro Auto', '-BTN_FROTA-': 'Seguro Frota','-BTN_VIDA-': 'Seguro de Vida', '-BTN_CONSORCIO-': 'Consórcio'}
+                produto_simulado = produto_map.get(event, 'Desconhecido')
+                # --- Dados para o Excel ---
+                new_data = { # Usa os nomes exatos das colunas do Excel como chaves
+                    'Nome': values['-NOME-'],
+                    'Documento': values['-CPF_CNPJ-'],
+                    'Endereço': values['-ENDERECO-'],
+                    'E-mail': values['-EMAIL-'],
+                    'Data Nasc.': values['-DT_NASC-'],
+                    'Produto Simulado': produto_simulado
+                }
+                # Correção: Passar dicionário, não DataFrame
+                append_to_excel(EXCEL_FILE, SHEET_NAME, new_data) # Chamada da função com dicionário
+                
+                dados_basicos_cliente = {key[1:-1].lower(): values[key] for key in campos_basicos}
+                dados_basicos_cliente['tipo_documento'] = doc_type; dados_basicos_cliente['idade_calculada'] = age
+                print("Dados básicos validados e salvos:", dados_basicos_cliente)
+                
+                if event == '-BTN_AUTO-': abrir_janela_auto(modo_frota=False)
+                elif event == '-BTN_FROTA-': abrir_janela_frota()
+                elif event == '-BTN_VIDA-': abrir_janela_vida()
+                elif event == '-BTN_CONSORCIO-': abrir_janela_consorcio()
+    window.close()
+
+if __name__ == "__main__":
+    main_interface()

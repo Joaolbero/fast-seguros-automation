@@ -1,0 +1,1 @@
+pyinstaller --onefile --windowed auto_seg.py

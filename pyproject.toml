@@ -1,0 +1,24 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "fast-seguros-automation"
+version = "1.0.0"
+description = "Automation tool for insurance quotations with an Excel-based workflow and PySimpleGUI interface."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+
+authors = [
+  { name = "João Vitor Albero" }
+]
+
+dependencies = [
+  "PySimpleGUI>=4.60.5",
+  "pandas>=2.0",
+  "openpyxl>=3.1"
+]
+
+[project.urls]
+"Repository" = "https://github.com/Joaolbero/fast-seguros-automation"
