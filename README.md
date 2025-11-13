@@ -18,7 +18,7 @@ A aplicação permite:
 
 Os dados são organizados em:
 
-- `Base_Clientes/Clientes.xlsx` – base geral de clientes  
+- `Base_Clientes/Clientes.xlsx` – base geral de clientes (dados fictícios) 
 - `Cotações_Clientes/Cotacoes_Auto.xlsx`  
 - `Cotações_Clientes/Cotacoes_Frota.xlsx`  
 - `Cotações_Clientes/Cotacoes_Vida.xlsx`  
