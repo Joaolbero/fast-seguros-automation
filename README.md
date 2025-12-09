@@ -1,178 +1,102 @@
-# Fast Seguros – Automação de Cotações
+<p align="center">
+  <img src="./icon/icon.png" alt="Project Icon" width="200" height="200">
+</p>
 
-> **PT-BR:** Ferramenta em Python para automatizar o fluxo de cadastro e cotação de seguros (auto, frotas, vida e consórcio), integrando interface gráfica com planilhas Excel.  
-> **EN:** Python automation tool to streamline insurance quotation workflows (auto, fleets, life, and consórcio), combining a GUI interface with Excel spreadsheets.
+# ⚡ Fast Seguros Automation / Insurance Automation Tool
 
----
-
-## 📌 Descrição | Description
-
-**PT-BR**  
-Este projeto foi desenvolvido como parte do **TCC de Ciência da Computação** e tem como objetivo **otimizar o fluxo de cotações** em uma corretora de seguros.  
-A aplicação permite:
-
-- Cadastro e validação de dados de clientes  
-- Escolha do tipo de produto (Auto, Frota, Vida, Consórcio)  
-- Registro estruturado das cotações em planilhas Excel  
-- Interface amigável via **PySimpleGUI**
-
-Os dados são organizados em:
-
-- `Base_Clientes/Clientes.xlsx` – base geral de clientes (dados fictícios) 
-- `Cotações_Clientes/Cotacoes_Auto.xlsx`  
-- `Cotações_Clientes/Cotacoes_Frota.xlsx`  
-- `Cotações_Clientes/Cotacoes_Vida.xlsx`  
-- `Cotações_Clientes/Cotacoes_Consorcio.xlsx`  
-
-**EN**  
-This project was developed as part of a **Computer Science graduation thesis (TCC)** and aims to **optimize insurance quotation workflows** in a brokerage.  
-The application provides:
-
-- Client data entry and validation  
-- Product selection (Auto, Fleet, Life, Consórcio)  
-- Structured quotation records into Excel spreadsheets  
-- User-friendly GUI with **PySimpleGUI**
-
-Data is organized into:
-
-- `Base_Clientes/Clientes.xlsx` – main clients database  
-- `Cotações_Clientes/Cotacoes_Auto.xlsx`  
-- `Cotações_Clientes/Cotacoes_Frota.xlsx`  
-- `Cotações_Clientes/Cotacoes_Vida.xlsx`  
-- `Cotações_Clientes/Cotacoes_Consorcio.xlsx`  
+<p align="center">
+  <img src="https://img.shields.io/badge/STATUS-active-brightgreen?style=for-the-badge">
+  <img src="https://img.shields.io/badge/PROJECT_TYPE-automation-blue?style=for-the-badge">
+  <img src="https://img.shields.io/badge/TECH_STACK-Python,_PySimpleGUI,_Pandas,_OpenPyXL-yellow?style=for-the-badge">
+  <img src="https://img.shields.io/badge/DEPENDENCIES-3-lightgrey?style=for-the-badge">
+  <img src="https://img.shields.io/badge/FEATURES-GUI,_Excel_Integration,_Client_Validation-lightgrey?style=for-the-badge">
+  <img src="https://img.shields.io/badge/LICENSE-MIT-orange?style=for-the-badge">
+  <img src="https://img.shields.io/badge/VERSION-1.0.0-red?style=for-the-badge">
+  <a href="https://github.com/Joaolbero">
+    <img src="https://img.shields.io/badge/AUTHOR-João_Albero-black?style=for-the-badge">
+  </a>
+  <img src="https://img.shields.io/github/last-commit/Joaolbero/fast-seguros-automation?style=for-the-badge">
+</p>
 
 ---
 
-## 🧰 Stack
+## 📄 Descrição / Description
 
-- **Python 3.x**
-- **PySimpleGUI** (GUI)
-- **pandas** (manipulação de dados / data handling)
-- **openpyxl** (integração com Excel)
+| 🇧🇷 PT-BR | 🇺🇸 EN |
+| --- | --- |
+| Automação em Python criada para otimizar o fluxo de cotações de seguros (Auto, Frota, Vida, Consórcio). Usa interface gráfica com PySimpleGUI e integra diretamente com planilhas Excel, fazendo parte do TCC em Ciência da Computação. | Python automation tool built to optimize insurance quotation workflows (Auto, Fleet, Life, Consórcio). Uses a GUI built with PySimpleGUI and integrates directly with Excel spreadsheets as part of a Computer Science graduation thesis project. |
 
 ---
 
-## ▶️ Como rodar a automação (código-fonte) | How to run (source code)
+## ✨ Funcionalidades / Features
 
-### PT-BR
+| 🇧🇷 PT-BR | 🇺🇸 EN |
+| --- | --- |
+| • Cadastro e validação de clientes<br>• Escolha do tipo de produto (Auto, Frota, Vida, Consórcio)<br>• Registro das cotações em planilhas Excel organizadas por categoria<br>• Interface amigável em PySimpleGUI | • Client registration and validation<br>• Product selection (Auto, Fleet, Life, Consórcio)<br>• Storing quotations in Excel spreadsheets organized by category<br>• User-friendly GUI using PySimpleGUI |
 
-1. **Clonar o repositório**
-   ```bash
-   git clone https://github.com/Joaolbero/fast-seguros-automation.git
-   cd fast-seguros-automation
+---
 
-2. **(Opcional, mas recomendado) Criar ambiente virtual**
+## ▶️ Como executar / How to run
 
-python -m venv .venv
-# Windows:
-.venv\Scripts\activate
-# Linux/macOS:
-# source .venv/bin/activate
+| 🇧🇷 PT-BR | 🇺🇸 EN |
+| --- | --- |
+| 1. Clonar o repositório<br>2. (Opcional) Criar ambiente virtual<br>3. Instalar dependências<br>4. Garantir a estrutura de planilhas<br>5. Executar `auto_seg.py` | 1. Clone the repository<br>2. (Optional) Create a virtual environment<br>3. Install dependencies<br>4. Ensure spreadsheet structure<br>5. Run `auto_seg.py` |
 
-3. **Instalar dependências**
+### 🔧 Comandos principais / Main commands
 
-pip install -r requirements.txt
+Clone do repositório:
 
-4. **Garantir a estrutura de pastas/arquivos**
+    git clone https://github.com/Joaolbero/fast-seguros-automation.git
+    cd fast-seguros-automation
 
-• Base_Clientes/Clientes.xlsx
-• Cotações_Clientes/*.xlsx
+Criar ambiente virtual (opcional):
 
-5. **Executar a aplicação**
+    python -m venv .venv
 
-python auto_seg.py
+Ativar venv (Windows):
 
-**EN**
+    .venv\Scripts\activate
 
-1. **Clone the repository**
+Instalar dependências:
 
-git clone https://github.com/Joaolbero/fast-seguros-automation.git
-cd fast-seguros-automation
+    pip install -r requirements.txt
 
+Executar aplicação:
 
-2. **(Optional but recommended) Create a virtual environment**
+    python auto_seg.py
 
-python -m venv .venv
-# Windows:
-.venv\Scripts\activate
-# Linux/macOS:
-# source .venv/bin/activate
+---
 
+## 💽 Executável para Windows / Windows executable
 
-3. **Install dependencies**
+| 🇧🇷 PT-BR | 🇺🇸 EN |
+| --- | --- |
+| O repositório inclui um executável gerado com PyInstaller, permitindo rodar a automação sem instalar Python, desde que a estrutura de pastas e planilhas esteja correta. | The repository includes a PyInstaller-built executable, allowing the automation to run without Python as long as the folder and spreadsheet structure is in place. |
 
-pip install -r requirements.txt
+Arquivos principais do executável:
 
+    auto_seg.exe
+    dist/auto_seg.exe
 
-4. **Make sure the folder/file structure exists**
+---
 
-• Base_Clientes/Clientes.xlsx
-• Cotações_Clientes/*.xlsx
+## 🗂️ Estrutura do projeto / Project structure
 
-5. **Run the application**
+| 🇧🇷 PT-BR | 🇺🇸 EN |
+| --- | --- |
+| auto_seg.py<br>auto_seg.exe<br>requirements.txt<br>pyproject.toml<br>Base_Clientes/Clientes.xlsx<br>Cotações_Clientes/Cotacoes_Auto.xlsx<br>Cotações_Clientes/Cotacoes_Frota.xlsx<br>Cotações_Clientes/Cotacoes_Vida.xlsx<br>Cotações_Clientes/Cotacoes_Consorcio.xlsx<br>build/ (artefatos PyInstaller)<br>dist/ (build final)<br>Anotações/ | auto_seg.py<br>auto_seg.exe<br>requirements.txt<br>pyproject.toml<br>Base_Clientes/Clientes.xlsx<br>Cotações_Clientes/Cotacoes_Auto.xlsx<br>Cotações_Clientes/Cotacoes_Frota.xlsx<br>Cotações_Clientes/Cotacoes_Vida.xlsx<br>Cotações_Clientes/Cotacoes_Consorcio.xlsx<br>build/ (PyInstaller artifacts)<br>dist/ (final build)<br>Anotações/ |
 
-python auto_seg.py
+---
 
-💻 Executável para Windows | Windows executable
+## 📄 Licença / License
 
-PT-BR
-O repositório contém um executável gerado com PyInstaller:
+| 🇧🇷 PT-BR | 🇺🇸 EN |
+| --- | --- |
+| Projeto licenciado sob os termos da MIT License. Consulte o arquivo `LICENSE` para mais detalhes. | Project licensed under the terms of the MIT License. See the `LICENSE` file for more details. |
 
-auto_seg.exe (raiz do projeto)
+---
 
-dist/auto_seg.exe (build final)
+## 👤 Autor / Author
 
-Isso permite rodar a automação em máquinas Windows sem precisar instalar Python, desde que a estrutura de pastas/planilhas esteja correta.
-
-EN
-The repo includes a PyInstaller-built executable:
-
-auto_seg.exe (project root)
-
-dist/auto_seg.exe (final build)
-
-This allows running the tool on Windows without installing Python, as long as the folder and spreadsheet structure is in place.
-
-🗂️ Estrutura do projeto | Project structure
-
-fast-seguros-automation/
-
-├─ auto_seg.py
-
-├─ auto_seg.exe
-
-├─ requirements.txt
-
-├─ pyproject.toml
-
-├─ LICENSE
-
-├─ Base_Clientes/
-
-│  └─ Clientes.xlsx
-
-├─ Cotações_Clientes/
-
-│  ├─ Cotacoes_Auto.xlsx
-
-│  ├─ Cotacoes_Consorcio.xlsx
-
-│  ├─ Cotacoes_Frota.xlsx
-
-│  └─ Cotacoes_Vida.xlsx
-
-├─ build/             # artefatos do PyInstaller (pode ser ignorado no Git)
-
-├─ dist/              # executável final (PyInstaller)
-
-└─ Anotações/         # notas e arquivos auxiliares (opcional, para estudo)
-
-📄 Licença | License
-
-Este projeto é licenciado sob os termos da MIT License.
-This project is licensed under the terms of the MIT License.
-Consulte o arquivo LICENSE para mais detalhes.
-
-👤 Autor | Author
-
-João Vitor Albero — GitHub · LinkedIn
+Criado por João Albero · 2025  
+Created by João Albero · 2025
